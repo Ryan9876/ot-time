@@ -1,0 +1,203 @@
+@{
+    ViewData["Title"] = "Reports";
+}
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Administration</p>
+        <h1>Reports</h1>
+        <p class="page-description">Review time activity, export results, and manage saved report delivery.</p>
+    </div>
+</section>
+
+<div class="report-workspace">
+    <section class="card report-filters" aria-labelledby="report-filters-title">
+        <div class="card-header">
+            <div>
+                <h2 id="report-filters-title">Report filters</h2>
+                <p>Choose the time entries to include in this report.</p>
+            </div>
+            <a class="button button-secondary" href="@Url.Action("Index", "Reports")">Clear filters</a>
+        </div>
+
+        <form method="get" action="@Url.Action("Index", "Reports")">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="fromDate">From date</label>
+                    <input id="fromDate" name="fromDate" type="date" value="@Context.Request.Query["fromDate"]" />
+                </div>
+                <div class="field">
+                    <label for="toDate">To date</label>
+                    <input id="toDate" name="toDate" type="date" value="@Context.Request.Query["toDate"]" />
+                </div>
+                <div class="field">
+                    <label for="userIds">Users</label>
+                    <select id="userIds" name="userIds" multiple>
+                        <option value="">All users</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="categoryIds">Categories</label>
+                    <select id="categoryIds" name="categoryIds" multiple>
+                        <option value="">All categories</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="sourceIds">Ticket sources</label>
+                    <select id="sourceIds" name="sourceIds" multiple>
+                        <option value="">All sources</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="ticketReference">Ticket or reference</label>
+                    <input id="ticketReference" name="ticketReference" type="search" value="@Context.Request.Query["ticketReference"]" placeholder="e.g. INC-1042" />
+                </div>
+                <div class="field">
+                    <label for="afterHours">After-hours</label>
+                    <select id="afterHours" name="afterHours">
+                        <option value="">All entries</option>
+                        <option value="true">After-hours only</option>
+                        <option value="false">Standard hours only</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="tagIds">Tags</label>
+                    <select id="tagIds" name="tagIds" multiple>
+                        <option value="">All tags</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="button button-primary" type="submit">Run report</button>
+                <button class="button button-secondary" type="submit" formaction="@Url.Action("ExportCsv", "Reports")">Export CSV</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="report-summary" aria-label="Report totals">
+        <article class="summary-card">
+            <span class="summary-label">Entries</span>
+            <strong class="summary-value">—</strong>
+        </article>
+        <article class="summary-card">
+            <span class="summary-label">Total time</span>
+            <strong class="summary-value">—</strong>
+        </article>
+        <article class="summary-card">
+            <span class="summary-label">After-hours</span>
+            <strong class="summary-value">—</strong>
+        </article>
+        <article class="summary-card">
+            <span class="summary-label">Users represented</span>
+            <strong class="summary-value">—</strong>
+        </article>
+    </section>
+
+    <section class="card" aria-labelledby="report-results-title">
+        <div class="card-header">
+            <div>
+                <h2 id="report-results-title">Report results</h2>
+                <p>Run a report to view matching time entries and totals.</p>
+            </div>
+            <span class="status status-neutral">No report loaded</span>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">User</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Reference</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Tags</th>
+                        <th scope="col">After-hours</th>
+                        <th scope="col" class="numeric">Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="9" class="empty-state">Select filters and run a report to display entries.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="report-management-grid">
+        <section class="card" aria-labelledby="saved-reports-title">
+            <div class="card-header">
+                <div>
+                    <h2 id="saved-reports-title">Saved definitions</h2>
+                    <p>Reuse frequently needed report filters.</p>
+                </div>
+                <a class="button button-secondary" href="@Url.Action("Create", "ReportDefinitions")">New definition</a>
+            </div>
+
+            <div class="empty-state">
+                <p>No saved report definitions are available.</p>
+                <a href="@Url.Action("Create", "ReportDefinitions")">Create a saved definition</a>
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="schedules-title">
+            <div class="card-header">
+                <div>
+                    <h2 id="schedules-title">Schedules</h2>
+                    <p>Deliver saved reports without an active browser session.</p>
+                </div>
+                <a class="button button-secondary" href="@Url.Action("Create", "ReportSchedules")">New schedule</a>
+            </div>
+
+            <div class="empty-state">
+                <p>No report schedules are configured.</p>
+                <a href="@Url.Action("Create", "ReportSchedules")">Schedule a report</a>
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="destinations-title">
+            <div class="card-header">
+                <div>
+                    <h2 id="destinations-title">Destinations</h2>
+                    <p>Manage approved export and delivery locations.</p>
+                </div>
+                <a class="button button-secondary" href="@Url.Action("Index", "ReportDestinations")">Manage destinations</a>
+            </div>
+
+            <div class="empty-state">
+                <p>Protected file locations and approved email delivery settings appear here.</p>
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="execution-history-title">
+            <div class="card-header">
+                <div>
+                    <h2 id="execution-history-title">Execution history</h2>
+                    <p>Review scheduled report runs, delivery outcomes, and artifacts.</p>
+                </div>
+                <a class="button button-secondary" href="@Url.Action("Index", "ReportExecutions")">View history</a>
+            </div>
+
+            <div class="empty-state">
+                <p>No scheduled report executions have been recorded.</p>
+            </div>
+        </section>
+    </div>
+
+    <section class="card" aria-labelledby="artifacts-title">
+        <div class="card-header">
+            <div>
+                <h2 id="artifacts-title">Generated artifacts</h2>
+                <p>Download retained exports from completed report executions.</p>
+            </div>
+            <a class="button button-secondary" href="@Url.Action("Index", "ReportArtifacts")">Browse artifacts</a>
+        </div>
+
+        <div class="empty-state">
+            <p>No downloadable report artifacts are currently available.</p>
+        </div>
+    </section>
+</div>

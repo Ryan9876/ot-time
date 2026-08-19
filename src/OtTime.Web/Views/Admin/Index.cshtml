@@ -1,0 +1,152 @@
+@{
+    ViewData["Title"] = "Administration";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Administration</h1>
+        <p class="text-muted mb-0">Manage access, configurable time-entry data, reporting, and audit history.</p>
+    </div>
+    <a class="btn btn-outline-secondary" asp-controller="Audit" asp-action="Index">
+        <i class="bi bi-clock-history" aria-hidden="true"></i> Review audit log
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-people fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Users and roles</h2>
+                        <p class="text-muted small">Create accounts, manage access, reset credentials, and assign User, Reporter, or Administrator roles.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Users" asp-action="Index">Manage users</a>
+                <a class="btn btn-sm btn-outline-secondary" asp-controller="Roles" asp-action="Index">Manage roles</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-tags fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Activity categories</h2>
+                        <p class="text-muted small">Configure engineering, request, work, and after-hours activity categories and their display order.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Categories" asp-action="Index">Manage categories</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-diagram-3 fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Ticket sources</h2>
+                        <p class="text-muted small">Maintain the systems used for manually entered ticket and reference identifiers.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Sources" asp-action="Index">Manage sources</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-tag fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Tags</h2>
+                        <p class="text-muted small">Create, rename, order, enable, or disable optional tags used on time entries and reports.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Tags" asp-action="Index">Manage tags</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-columns-gap fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Custom dimensions</h2>
+                        <p class="text-muted small">Define reporting dimensions and values for organization-specific grouping and filtering.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Dimensions" asp-action="Index">Manage dimensions</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-bar-chart-line fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Reports</h2>
+                        <p class="text-muted small">Run organization-wide reports, export CSV files, and manage saved report definitions.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Reports" asp-action="Index">Open reports</a>
+                <a class="btn btn-sm btn-outline-secondary" asp-controller="ReportDefinitions" asp-action="Index">Saved reports</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-calendar-check fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Report schedules</h2>
+                        <p class="text-muted small">Configure enabled schedules, time zones, destinations, recipients, and execution history.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="ReportSchedules" asp-action="Index">Manage schedules</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-toggle-on fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Configuration status</h2>
+                        <p class="text-muted small">Review enabled lookup values and keep inactive items available for historical reporting.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Configuration" asp-action="Index">Review configuration</a>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-shield-check fs-3 text-primary" aria-hidden="true"></i>
+                    <div>
+                        <h2 class="h5">Audit review</h2>
+                        <p class="text-muted small">Inspect time-entry and administrative changes, including actors, timestamps, and prior values.</p>
+                    </div>
+                </div>
+                <a class="btn btn-sm btn-primary" asp-controller="Audit" asp-action="Index">View audit events</a>
+            </div>
+        </section>
+    </div>
+</div>

@@ -1,0 +1,193 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "My time";
+    var categories = ViewBag.Categories as IEnumerable<SelectListItem> ?? Array.Empty<SelectListItem>();
+    var sources = ViewBag.Sources as IEnumerable<SelectListItem> ?? Array.Empty<SelectListItem>();
+    var tags = ViewBag.Tags as IEnumerable<SelectListItem> ?? Array.Empty<SelectListItem>();
+    var dimensions = ViewBag.Dimensions as IEnumerable<dynamic> ?? Array.Empty<dynamic>();
+    var entries = ViewBag.Entries as IEnumerable<dynamic> ?? Array.Empty<dynamic>();
+    var workDate = ViewBag.WorkDate as string ?? DateTime.Today.ToString("yyyy-MM-dd");
+}
+
+<header class="page-header">
+    <div>
+        <h1>My time</h1>
+        <p class="text-muted">Log work quickly and keep your history private.</p>
+    </div>
+    <a asp-action="Export" class="btn btn-outline-secondary">Export my history</a>
+</header>
+
+<section class="card entry-card" aria-labelledby="new-entry-heading">
+    <div class="card-body">
+        <h2 id="new-entry-heading" class="h4">Add time</h2>
+
+        <form asp-action="Create" method="post" id="time-entry-form">
+            <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+            <div class="entry-grid">
+                <div class="form-group">
+                    <label for="workDate">Date</label>
+                    <input id="workDate" name="workDate" type="date" class="form-control" value="@workDate" required />
+                </div>
+
+                <div class="form-group">
+                    <label for="durationMinutes">Duration</label>
+                    <div class="input-group">
+                        <input id="durationMinutes" name="durationMinutes" type="number" class="form-control" min="1" max="1440" step="1" inputmode="numeric" placeholder="60" required />
+                        <span class="input-group-text">min</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="categoryId">Activity</label>
+                    <select id="categoryId" name="categoryId" class="form-select" required>
+                        <option value="">Choose activity</option>
+                        @foreach (var category in categories)
+                        {
+                            <option value="@category.Value">@category.Text</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="sourceId">Ticket source <span class="text-muted">(optional)</span></label>
+                    <select id="sourceId" name="sourceId" class="form-select">
+                        <option value="">No ticket source</option>
+                        @foreach (var source in sources)
+                        {
+                            <option value="@source.Value">@source.Text</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group ticket-reference">
+                    <label for="ticketReference">Ticket or reference <span class="text-muted">(optional)</span></label>
+                    <input id="ticketReference" name="ticketReference" class="form-control" maxlength="128" autocomplete="off" placeholder="INC-12345" />
+                </div>
+
+                <div class="form-check after-hours">
+                    <input id="afterHours" name="afterHours" type="checkbox" value="true" class="form-check-input" />
+                    <input name="afterHours" type="hidden" value="false" />
+                    <label for="afterHours" class="form-check-label">After hours</label>
+                </div>
+            </div>
+
+            <div class="form-group mt-3">
+                <label for="description">What did you work on?</label>
+                <textarea id="description" name="description" class="form-control" rows="3" maxlength="4000" required autofocus placeholder="Briefly describe the work completed"></textarea>
+            </div>
+
+            @if (tags.Any())
+            {
+                <fieldset class="mt-3">
+                    <legend class="form-label mb-1">Tags <span class="text-muted">(optional)</span></legend>
+                    <div class="choice-list">
+                        @foreach (var tag in tags)
+                        {
+                            <label class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" name="tagIds" value="@tag.Value" />
+                                <span class="form-check-label">@tag.Text</span>
+                            </label>
+                        }
+                    </div>
+                </fieldset>
+            }
+
+            @foreach (var dimension in dimensions)
+            {
+                <div class="form-group mt-3">
+                    <label for="dimension-@dimension.Id">@dimension.Name <span class="text-muted">(optional)</span></label>
+                    <select id="dimension-@dimension.Id" name="dimensionValues[@dimension.Id]" class="form-select">
+                        <option value="">Not specified</option>
+                        @foreach (var value in dimension.Values)
+                        {
+                            <option value="@value.Id">@value.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="d-flex align-items-center gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Save entry</button>
+                <span class="text-muted small">Press Ctrl+Enter to save</span>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="mt-4" aria-labelledby="history-heading">
+    <div class="section-heading">
+        <div>
+            <h2 id="history-heading">Recent history</h2>
+            <p class="text-muted mb-0">Only you can view and manage these entries.</p>
+        </div>
+        <a asp-action="History" class="btn btn-link">View all</a>
+    </div>
+
+    @if (!entries.Any())
+    {
+        <div class="empty-state">
+            <p class="mb-0">No time logged yet. Add your first entry above.</p>
+        </div>
+    }
+    else
+    {
+        <div class="history-list">
+            @foreach (var entry in entries)
+            {
+                <article class="history-item">
+                    <div class="history-main">
+                        <div class="history-title">
+                            <strong>@entry.CategoryName</strong>
+                            @if (entry.AfterHours)
+                            {
+                                <span class="badge text-bg-secondary">After hours</span>
+                            }
+                        </div>
+                        <p class="history-description">@entry.Description</p>
+                        <div class="history-meta">
+                            <time datetime="@entry.WorkDate.ToString("yyyy-MM-dd")">@entry.WorkDate.ToString("ddd, MMM d")</time>
+                            @if (entry.SourceName != null || entry.TicketReference != null)
+                            {
+                                <span>
+                                    @(entry.SourceName ?? "Reference")@if (entry.TicketReference != null) { <text>: @entry.TicketReference</text> }
+                                </span>
+                            }
+                            @if (entry.Tags != null)
+                            {
+                                @foreach (var tag in entry.Tags)
+                                {
+                                    <span class="tag">@tag</span>
+                                }
+                            }
+                        </div>
+                    </div>
+                    <div class="history-actions">
+                        <strong class="duration">@entry.DurationMinutes min</strong>
+                        <div class="btn-group btn-group-sm" aria-label="Entry actions">
+                            <a asp-action="Edit" asp-route-id="@entry.Id" class="btn btn-outline-secondary">Edit</a>
+                            <form asp-action="Delete" asp-route-id="@entry.Id" method="post" class="d-inline" onsubmit="return confirm('Delete this time entry?');">
+                                <button type="submit" class="btn btn-outline-danger">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const form = document.getElementById('time-entry-form');
+            form?.addEventListener('keydown', event => {
+                if (event.key === 'Enter' && event.ctrlKey) {
+                    event.preventDefault();
+                    form.requestSubmit();
+                }
+            });
+        })();
+    </script>
+}
