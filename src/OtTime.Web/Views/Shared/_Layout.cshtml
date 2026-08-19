@@ -1,0 +1,100 @@
+@{
+    var title = ViewData["Title"] as string ?? "OT Time";
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var canReport = User.IsInRole("Reporter") || User.IsInRole("Administrator");
+    var isAdministrator = User.IsInRole("Administrator");
+    var hasValidationErrors = ViewData.ModelState.Values.Any(v => v.Errors.Count > 0);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1f4b70" />
+    <title>@title - OT Time</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="site-brand" href="~/" aria-label="OT Time home">
+                <span class="site-brand__name">OT Time</span>
+            </a>
+
+            @if (isAuthenticated)
+            {
+                <nav class="primary-nav" aria-label="Primary navigation">
+                    <a asp-controller="Home" asp-action="Index">Dashboard</a>
+                    <a asp-controller="TimeEntries" asp-action="Index">My time</a>
+                    <a asp-controller="TimeEntries" asp-action="Create">Log time</a>
+                    @if (canReport)
+                    {
+                        <a asp-controller="Reports" asp-action="Index">Reports</a>
+                    }
+                    @if (isAdministrator)
+                    {
+                        <a asp-controller="Administration" asp-action="Index">Administration</a>
+                    }
+                </nav>
+
+                <div class="account-nav">
+                    <span class="account-nav__user" aria-label="Signed in user">@User.Identity?.Name</span>
+                    <form asp-controller="Account" asp-action="Logout" method="post">
+                        <button type="submit" class="button button--text">Sign out</button>
+                    </form>
+                </div>
+            }
+            else
+            {
+                <nav class="account-nav" aria-label="Account navigation">
+                    <a asp-controller="Account" asp-action="Login">Sign in</a>
+                </nav>
+            }
+        </div>
+    </header>
+
+    <main id="main-content" class="site-main" tabindex="-1">
+        @if (TempData["SuccessMessage"] is string successMessage)
+        {
+            <div class="status-message status-message--success" role="status">
+                @successMessage
+            </div>
+        }
+        @if (TempData["InfoMessage"] is string infoMessage)
+        {
+            <div class="status-message status-message--info" role="status">
+                @infoMessage
+            </div>
+        }
+        @if (TempData["ErrorMessage"] is string errorMessage)
+        {
+            <div class="status-message status-message--error" role="alert">
+                @errorMessage
+            </div>
+        }
+        @if (hasValidationErrors)
+        {
+            <div class="validation-summary-errors" role="alert" aria-labelledby="validation-summary-title">
+                <h2 id="validation-summary-title">Please correct the following</h2>
+                <div asp-validation-summary="ModelOnly"></div>
+            </div>
+        }
+
+        @await RenderSectionAsync("DashboardIntegration", required: false)
+        @RenderBody()
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <span>&copy; @DateTime.UtcNow.Year OT Time</span>
+            @await RenderSectionAsync("FooterIntegration", required: false)
+        </div>
+    </footer>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
