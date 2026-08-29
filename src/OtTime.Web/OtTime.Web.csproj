@@ -10,5 +10,6 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="AcceptanceModel.cs" />
   </ItemGroup>
 </Project>
