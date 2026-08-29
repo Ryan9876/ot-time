@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
@@ -8,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -358,11 +358,11 @@ public sealed class AcceptanceTests : IClassFixture<AcceptanceTests.AppFactory>
             {
                 services.AddAuthentication(options =>
                 {
-                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.Scheme;
-                    options.DefaultChallengeScheme = TestAuthenticationHandler.Scheme;
-                    options.DefaultForbidScheme = TestAuthenticationHandler.Scheme;
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
                 }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
-                    TestAuthenticationHandler.Scheme,
+                    TestAuthenticationHandler.SchemeName,
                     _ => { });
             });
         }
@@ -370,7 +370,7 @@ public sealed class AcceptanceTests : IClassFixture<AcceptanceTests.AppFactory>
 
     private sealed class TestAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
-        public const string Scheme = "AcceptanceTest";
+        public const string SchemeName = "AcceptanceTest";
 
         public TestAuthenticationHandler(
             IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -398,9 +398,9 @@ public sealed class AcceptanceTests : IClassFixture<AcceptanceTests.AppFactory>
 
             claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-            var identity = new ClaimsIdentity(claims, Scheme);
+            var identity = new ClaimsIdentity(claims, SchemeName);
             var principal = new ClaimsPrincipal(identity);
-            var ticket = new AuthenticationTicket(principal, Scheme);
+            var ticket = new AuthenticationTicket(principal, SchemeName);
 
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
