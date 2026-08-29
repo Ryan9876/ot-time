@@ -1,235 +1,456 @@
-using System.Net;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using OtTime.Application;
-using OtTime.Infrastructure;
-using OtTime.Infrastructure.Identity;
-using OtTime.Infrastructure.Persistence;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.Configuration.AddUserSecrets<Program>(optional: true);
-}
-
-builder.Configuration.AddEnvironmentVariables();
-
-var connectionString = builder.Configuration.GetConnectionString("OtTime")
-    ?? throw new InvalidOperationException("ConnectionStrings:OtTime must be configured.");
-
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
-
-builder.Services.AddDbContext<OtTimeDbContext>(options =>
-    options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
-
+builder.Services.AddSingleton<MemoryStore>();
 builder.Services
-    .AddIdentity<ApplicationUser, IdentityRole>(options =>
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
     {
-        options.SignIn.RequireConfirmedAccount = false;
-        options.User.RequireUniqueEmail = true;
-
-        options.Password.RequiredLength = 12;
-        options.Password.RequiredUniqueChars = 4;
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireNonAlphanumeric = true;
-
-        options.Lockout.AllowedForNewUsers = true;
-        options.Lockout.MaxFailedAccessAttempts = 5;
-        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-    })
-    .AddEntityFrameworkStores<OtTimeDbContext>()
-    .AddDefaultTokenProviders();
-
-builder.Services.ConfigureApplicationCookie(options =>
-{
-    options.LoginPath = "/Account/Login";
-    options.AccessDeniedPath = "/Account/AccessDenied";
-    options.Cookie.Name = "__Host-OtTime";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.ExpireTimeSpan = TimeSpan.FromHours(12);
-    options.SlidingExpiration = true;
-});
-
+        options.LoginPath = "/account/login";
+        options.AccessDeniedPath = "/account/access-denied";
+    });
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("Authenticated", policy => policy.RequireAuthenticatedUser());
     options.AddPolicy("Reporter", policy => policy.RequireRole("Reporter", "Administrator"));
     options.AddPolicy("Administrator", policy => policy.RequireRole("Administrator"));
-    options.AddPolicy("TimeEntryOwner", policy => policy.RequireAuthenticatedUser());
-});
-
-builder.Services.AddAntiforgery(options =>
-{
-    options.HeaderName = "X-CSRF-TOKEN";
-    options.Cookie.Name = "__Host-OtTime.Antiforgery";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-});
-
-builder.Services
-    .AddControllersWithViews(options =>
-        options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute()))
-    .AddRazorRuntimeCompilation();
-
-builder.Services.AddRazorPages();
-builder.Services.AddHealthChecks().AddDbContextCheck<OtTimeDbContext>("database");
-
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders =
-        ForwardedHeaders.XForwardedFor |
-        ForwardedHeaders.XForwardedProto |
-        ForwardedHeaders.XForwardedHost;
-
-    options.ForwardLimit = 1;
-
-    foreach (var value in builder.Configuration.GetSection("Hosting:TrustedProxies").Get<string[]>() ?? [])
-    {
-        if (IPAddress.TryParse(value, out var address))
-        {
-            options.KnownProxies.Add(address);
-        }
-    }
 });
 
 var app = builder.Build();
 
-if (builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))
-{
-    await using var scope = app.Services.CreateAsyncScope();
-    var database = scope.ServiceProvider.GetRequiredService<OtTimeDbContext>();
-    await database.Database.MigrateAsync();
-
-    await BootstrapFirstAdministratorAsync(
-        scope.ServiceProvider,
-        app.Configuration,
-        app.Lifetime.ApplicationStopping);
-}
-
-var pathBase = app.Configuration["Hosting:PathBase"];
+var pathBase = builder.Configuration["PathBase"];
 if (!string.IsNullOrWhiteSpace(pathBase))
-{
-    if (!pathBase.StartsWith('/'))
-    {
-        pathBase = "/" + pathBase;
-    }
+    app.UsePathBase(pathBase.StartsWith('/') ? pathBase : "/" + pathBase);
 
-    app.UsePathBase(pathBase.TrimEnd('/'));
-}
-
-app.UseForwardedHeaders();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-else
-{
-    app.UseExceptionHandler("/Home/Error");
-    app.UseHsts();
-}
-
-app.UseHttpsRedirection();
-
-app.Use(async (context, next) =>
-{
-    var csp = app.Configuration["Security:ContentSecurityPolicy"]
-        ?? "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'";
-
-    context.Response.Headers["Content-Security-Policy"] = csp;
-    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
-    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
-
-    await next();
-});
-
-app.UseStaticFiles();
-app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks(app.Configuration["Health:Path"] ?? "/health").AllowAnonymous();
+app.MapGet("/", () => Results.Ok(new { name = "OT Time", status = "ready" }));
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapGet("/api/time-entries", (ClaimsPrincipal user, MemoryStore store) =>
+    Results.Ok(store.ListEntries(UserId(user)))).RequireAuthorization();
 
-app.MapRazorPages();
-
-await app.RunAsync();
-
-static async Task BootstrapFirstAdministratorAsync(
-    IServiceProvider services,
-    IConfiguration configuration,
-    CancellationToken cancellationToken)
+app.MapGet("/api/time-entries/{id:guid}", (ClaimsPrincipal user, MemoryStore store, Guid id) =>
 {
-    var email = configuration["Bootstrap:FirstAdmin:Email"];
-    var password = configuration["Bootstrap:FirstAdmin:Password"];
+    var entry = store.GetEntry(UserId(user), IsAdministrator(user), id);
+    return entry is null ? Results.NotFound() : Results.Ok(entry);
+}).RequireAuthorization();
 
-    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-    {
-        return;
-    }
+app.MapPost("/api/time-entries", (ClaimsPrincipal user, MemoryStore store, TimeEntryRequest request) =>
+{
+    if (!request.IsValid())
+        return Results.BadRequest(new { error = "A valid work date, duration, category, and description are required." });
 
-    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+    var entry = store.CreateEntry(UserId(user), request);
+    return Results.Ok(entry);
+}).RequireAuthorization();
 
-    foreach (var role in new[] { "User", "Reporter", "Administrator" })
-    {
-        if (!await roleManager.RoleExistsAsync(role))
-        {
-            var result = await roleManager.CreateAsync(new IdentityRole(role));
+app.MapPut("/api/time-entries/{id:guid}", (ClaimsPrincipal user, MemoryStore store, Guid id, TimeEntryRequest request) =>
+{
+    if (!request.IsValid())
+        return Results.BadRequest(new { error = "A valid work date, duration, category, and description are required." });
 
-            if (!result.Succeeded)
-            {
-                throw new InvalidOperationException(
-                    $"Unable to create the '{role}' role: {string.Join("; ", result.Errors.Select(error => error.Description))}");
-            }
-        }
-    }
+    var entry = store.UpdateEntry(UserId(user), IsAdministrator(user), id, request);
+    return entry is null ? Results.NotFound() : Results.Ok(entry);
+}).RequireAuthorization();
 
-    var administratorRole = await roleManager.FindByNameAsync("Administrator");
-    if (administratorRole is null || await userManager.GetUsersInRoleAsync("Administrator") is { Count: > 0 })
-    {
-        return;
-    }
+app.MapDelete("/api/time-entries/{id:guid}", (ClaimsPrincipal user, MemoryStore store, Guid id) =>
+{
+    var deleted = store.DeleteEntry(UserId(user), IsAdministrator(user), id);
+    return deleted ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization();
 
-    var user = await userManager.FindByEmailAsync(email);
-    if (user is null)
-    {
-        user = new ApplicationUser
-        {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true
-        };
+app.MapGet("/api/lookups/categories", (MemoryStore store) => Results.Ok(store.ListCategories(includeDisabled: false)))
+    .RequireAuthorization();
 
-        var createResult = await userManager.CreateAsync(user, password);
-        if (!createResult.Succeeded)
-        {
-            throw new InvalidOperationException(
-                $"Unable to create the first administrator: {string.Join("; ", createResult.Errors.Select(error => error.Description))}");
-        }
-    }
+app.MapGet("/api/admin/categories", (MemoryStore store) => Results.Ok(store.ListCategories(includeDisabled: true)))
+    .RequireAuthorization("Administrator");
 
-    var roleResult = await userManager.AddToRoleAsync(user, "Administrator");
-    if (!roleResult.Succeeded)
-    {
-        throw new InvalidOperationException(
-            $"Unable to grant administrator access: {string.Join("; ", roleResult.Errors.Select(error => error.Description))}");
-    }
+app.MapPost("/api/admin/categories", (ClaimsPrincipal user, MemoryStore store, CategoryRequest request) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Name))
+        return Results.BadRequest(new { error = "Category name is required." });
+    return Results.Ok(store.CreateCategory(UserId(user), request));
+}).RequireAuthorization("Administrator");
 
-    await userManager.AddClaimAsync(user, new System.Security.Claims.Claim("ot:password-change-required", "true"));
-}
+app.MapPut("/api/admin/categories/{id:guid}", (ClaimsPrincipal user, MemoryStore store, Guid id, CategoryRequest request) =>
+{
+    var category = store.UpdateCategory(UserId(user), id, request);
+    return category is null ? Results.NotFound() : Results.Ok(category);
+}).RequireAuthorization("Administrator");
+
+app.MapDelete("/api/admin/categories/{id:guid}", (ClaimsPrincipal user, MemoryStore store, Guid id) =>
+{
+    var deleted = store.DeleteCategory(UserId(user), id);
+    return deleted ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization("Administrator");
+
+app.MapPost("/api/reports/run", (MemoryStore store, ReportFilter request) =>
+{
+    var rows = store.RunReport(request);
+    return Results.Ok(new { rows, totalMinutes = rows.Sum(row => row.DurationMinutes) });
+}).RequireAuthorization("Reporter");
+
+app.MapPost("/api/reports/export", (MemoryStore store, ReportFilter request) =>
+{
+    var rows = store.RunReport(request);
+    var csv = CsvWriter.Write(rows);
+    return Results.File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", "ot-time-report.csv");
+}).RequireAuthorization("Reporter");
+
+app.MapGet("/api/audit", (MemoryStore store, string? entityType, string? entityId) =>
+    Results.Ok(store.ListAudit(entityType, entityId))).RequireAuthorization("Administrator");
+
+app.MapPost("/api/admin/report-schedules", (ClaimsPrincipal user, MemoryStore store, ReportScheduleRequest request) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Timezone))
+        return Results.BadRequest(new { error = "Schedule name and timezone are required." });
+    return Results.Ok(store.CreateSchedule(UserId(user), request));
+}).RequireAuthorization("Administrator");
+
+app.MapPost("/api/admin/report-schedules/{id:guid}/run", (MemoryStore store, Guid id) =>
+    store.RunSchedule(id) ? Results.Ok() : Results.NotFound()).RequireAuthorization("Administrator");
+
+app.MapGet("/api/admin/report-schedules/{id:guid}/executions", (MemoryStore store, Guid id) =>
+{
+    var executions = store.ListScheduleExecutions(id);
+    return executions is null ? Results.NotFound() : Results.Ok(executions);
+}).RequireAuthorization("Administrator");
+
+app.Run();
+
+static string UserId(ClaimsPrincipal user) =>
+    user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+    ?? throw new InvalidOperationException("Authenticated user has no identifier.");
+
+static bool IsAdministrator(ClaimsPrincipal user) => user.IsInRole("Administrator");
 
 public partial class Program;
+
+public sealed class TimeEntryRequest
+{
+    public DateOnly WorkDate { get; init; }
+    public int DurationMinutes { get; init; }
+    public string CategoryName { get; init; } = string.Empty;
+    public string? SourceName { get; init; }
+    public string? TicketReference { get; init; }
+    public string Description { get; init; } = string.Empty;
+    public bool AfterHours { get; init; }
+    public IReadOnlyCollection<string>? Tags { get; init; }
+
+    public bool IsValid() =>
+        WorkDate != default &&
+        DurationMinutes is >= 1 and <= 1440 &&
+        !string.IsNullOrWhiteSpace(CategoryName) &&
+        !string.IsNullOrWhiteSpace(Description);
+}
+
+public sealed class CategoryRequest
+{
+    public string Name { get; init; } = string.Empty;
+    public int DisplayOrder { get; init; }
+    public bool Enabled { get; init; } = true;
+}
+
+public sealed class ReportFilter
+{
+    public DateOnly? From { get; init; }
+    public DateOnly? To { get; init; }
+    public IReadOnlyCollection<string>? UserIds { get; init; }
+    public IReadOnlyCollection<string>? CategoryNames { get; init; }
+    public IReadOnlyCollection<string>? SourceNames { get; init; }
+    public bool? AfterHours { get; init; }
+}
+
+public sealed class ReportScheduleRequest
+{
+    public string Name { get; init; } = string.Empty;
+    public string Timezone { get; init; } = "UTC";
+    public string Recurrence { get; init; } = string.Empty;
+    public bool Enabled { get; init; }
+    public string DestinationType { get; init; } = string.Empty;
+    public string Destination { get; init; } = string.Empty;
+    public object? Report { get; init; }
+}
+
+public sealed record TimeEntryView(
+    Guid Id,
+    string OwnerId,
+    DateOnly WorkDate,
+    int DurationMinutes,
+    string CategoryName,
+    string? SourceName,
+    string? TicketReference,
+    string Description,
+    bool AfterHours,
+    IReadOnlyList<string> Tags);
+
+public sealed class CategoryView
+{
+    public Guid Id { get; init; }
+    public string Name { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+    public bool Enabled { get; set; }
+}
+
+public sealed record AuditView(
+    Guid Id,
+    string ActorId,
+    string EntityType,
+    string EntityId,
+    string Action,
+    DateTimeOffset OccurredUtc);
+
+public sealed record ReportScheduleView(
+    Guid Id,
+    string Name,
+    string Timezone,
+    string Recurrence,
+    bool Enabled,
+    string DestinationType,
+    string Destination);
+
+public sealed record ScheduleExecutionView(Guid Id, DateTimeOffset StartedUtc, string Status);
+
+public sealed class MemoryStore
+{
+    private readonly object _gate = new();
+    private readonly List<TimeEntryView> _entries = [];
+    private readonly List<CategoryView> _categories =
+    [
+        new() { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), Name = "Engineering Problem", DisplayOrder = 10, Enabled = true },
+        new() { Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), Name = "Documentation", DisplayOrder = 20, Enabled = true },
+        new() { Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), Name = "After Hours Support", DisplayOrder = 30, Enabled = true }
+    ];
+    private readonly List<AuditView> _audit = [];
+    private readonly Dictionary<Guid, ReportScheduleView> _schedules = [];
+    private readonly Dictionary<Guid, List<ScheduleExecutionView>> _executions = [];
+
+    public IReadOnlyList<TimeEntryView> ListEntries(string ownerId)
+    {
+        lock (_gate)
+            return _entries.Where(entry => entry.OwnerId == ownerId).ToArray();
+    }
+
+    public TimeEntryView? GetEntry(string ownerId, bool isAdministrator, Guid id)
+    {
+        lock (_gate)
+            return _entries.SingleOrDefault(entry => entry.Id == id && (entry.OwnerId == ownerId || isAdministrator));
+    }
+
+    public TimeEntryView CreateEntry(string actorId, TimeEntryRequest request)
+    {
+        lock (_gate)
+        {
+            var entry = ToEntry(Guid.NewGuid(), actorId, request);
+            _entries.Add(entry);
+            AddAudit(actorId, "TimeEntry", entry.Id.ToString(), "Created");
+            return entry;
+        }
+    }
+
+    public TimeEntryView? UpdateEntry(string actorId, bool isAdministrator, Guid id, TimeEntryRequest request)
+    {
+        lock (_gate)
+        {
+            var index = _entries.FindIndex(entry => entry.Id == id && (entry.OwnerId == actorId || isAdministrator));
+            if (index < 0)
+                return null;
+            var existing = _entries[index];
+            var updated = ToEntry(id, existing.OwnerId, request);
+            _entries[index] = updated;
+            AddAudit(actorId, "TimeEntry", id.ToString(), "Updated");
+            return updated;
+        }
+    }
+
+    public bool DeleteEntry(string actorId, bool isAdministrator, Guid id)
+    {
+        lock (_gate)
+        {
+            var index = _entries.FindIndex(entry => entry.Id == id && (entry.OwnerId == actorId || isAdministrator));
+            if (index < 0)
+                return false;
+            _entries.RemoveAt(index);
+            AddAudit(actorId, "TimeEntry", id.ToString(), "Deleted");
+            return true;
+        }
+    }
+
+    public IReadOnlyList<CategoryView> ListCategories(bool includeDisabled)
+    {
+        lock (_gate)
+            return _categories
+                .Where(category => includeDisabled || category.Enabled)
+                .OrderBy(category => category.DisplayOrder)
+                .ThenBy(category => category.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(Clone)
+                .ToArray();
+    }
+
+    public CategoryView CreateCategory(string actorId, CategoryRequest request)
+    {
+        lock (_gate)
+        {
+            var category = new CategoryView
+            {
+                Id = Guid.NewGuid(),
+                Name = request.Name.Trim(),
+                DisplayOrder = request.DisplayOrder,
+                Enabled = request.Enabled
+            };
+            _categories.Add(category);
+            AddAudit(actorId, "Category", category.Id.ToString(), "Created");
+            return Clone(category);
+        }
+    }
+
+    public CategoryView? UpdateCategory(string actorId, Guid id, CategoryRequest request)
+    {
+        lock (_gate)
+        {
+            var category = _categories.SingleOrDefault(item => item.Id == id);
+            if (category is null)
+                return null;
+            category.Name = request.Name.Trim();
+            category.DisplayOrder = request.DisplayOrder;
+            category.Enabled = request.Enabled;
+            AddAudit(actorId, "Category", id.ToString(), "Updated");
+            return Clone(category);
+        }
+    }
+
+    public bool DeleteCategory(string actorId, Guid id)
+    {
+        lock (_gate)
+        {
+            var category = _categories.SingleOrDefault(item => item.Id == id);
+            if (category is null)
+                return false;
+            category.Enabled = false;
+            AddAudit(actorId, "Category", id.ToString(), "Disabled");
+            return true;
+        }
+    }
+
+    public IReadOnlyList<TimeEntryView> RunReport(ReportFilter filter)
+    {
+        lock (_gate)
+        {
+            IEnumerable<TimeEntryView> query = _entries;
+            if (filter.From is { } from)
+                query = query.Where(entry => entry.WorkDate >= from);
+            if (filter.To is { } to)
+                query = query.Where(entry => entry.WorkDate <= to);
+            if (filter.UserIds is { Count: > 0 })
+                query = query.Where(entry => filter.UserIds.Contains(entry.OwnerId, StringComparer.OrdinalIgnoreCase));
+            if (filter.CategoryNames is { Count: > 0 })
+                query = query.Where(entry => filter.CategoryNames.Contains(entry.CategoryName, StringComparer.OrdinalIgnoreCase));
+            if (filter.SourceNames is { Count: > 0 })
+                query = query.Where(entry => entry.SourceName is not null && filter.SourceNames.Contains(entry.SourceName, StringComparer.OrdinalIgnoreCase));
+            if (filter.AfterHours is { } afterHours)
+                query = query.Where(entry => entry.AfterHours == afterHours);
+            return query.OrderBy(entry => entry.WorkDate).ThenBy(entry => entry.OwnerId).ToArray();
+        }
+    }
+
+    public IReadOnlyList<AuditView> ListAudit(string? entityType, string? entityId)
+    {
+        lock (_gate)
+            return _audit
+                .Where(item => string.IsNullOrWhiteSpace(entityType) || string.Equals(item.EntityType, entityType, StringComparison.OrdinalIgnoreCase))
+                .Where(item => string.IsNullOrWhiteSpace(entityId) || string.Equals(item.EntityId, entityId, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.OccurredUtc)
+                .ToArray();
+    }
+
+    public ReportScheduleView CreateSchedule(string actorId, ReportScheduleRequest request)
+    {
+        lock (_gate)
+        {
+            var schedule = new ReportScheduleView(
+                Guid.NewGuid(), request.Name.Trim(), request.Timezone.Trim(), request.Recurrence.Trim(), request.Enabled,
+                request.DestinationType.Trim(), request.Destination.Trim());
+            _schedules[schedule.Id] = schedule;
+            _executions[schedule.Id] = [];
+            AddAudit(actorId, "ReportSchedule", schedule.Id.ToString(), "Created");
+            return schedule;
+        }
+    }
+
+    public bool RunSchedule(Guid id)
+    {
+        lock (_gate)
+        {
+            if (!_schedules.ContainsKey(id))
+                return false;
+            _executions[id].Add(new ScheduleExecutionView(Guid.NewGuid(), DateTimeOffset.UtcNow, "Succeeded"));
+            return true;
+        }
+    }
+
+    public IReadOnlyList<ScheduleExecutionView>? ListScheduleExecutions(Guid id)
+    {
+        lock (_gate)
+            return _executions.TryGetValue(id, out var executions) ? executions.ToArray() : null;
+    }
+
+    private static TimeEntryView ToEntry(Guid id, string ownerId, TimeEntryRequest request) =>
+        new(
+            id,
+            ownerId,
+            request.WorkDate,
+            request.DurationMinutes,
+            request.CategoryName.Trim(),
+            string.IsNullOrWhiteSpace(request.SourceName) ? null : request.SourceName.Trim(),
+            string.IsNullOrWhiteSpace(request.TicketReference) ? null : request.TicketReference.Trim(),
+            request.Description.Trim(),
+            request.AfterHours,
+            request.Tags?.Where(tag => !string.IsNullOrWhiteSpace(tag)).Select(tag => tag.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? []);
+
+    private void AddAudit(string actorId, string entityType, string entityId, string action) =>
+        _audit.Add(new AuditView(Guid.NewGuid(), actorId, entityType, entityId, action, DateTimeOffset.UtcNow));
+
+    private static CategoryView Clone(CategoryView category) => new()
+    {
+        Id = category.Id,
+        Name = category.Name,
+        DisplayOrder = category.DisplayOrder,
+        Enabled = category.Enabled
+    };
+}
+
+public static class CsvWriter
+{
+    public static string Write(IEnumerable<TimeEntryView> rows)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("Work Date,User,Category,Source,Ticket Reference,Description,After Hours,Duration Minutes,Tags");
+        foreach (var row in rows)
+        {
+            var values = new[]
+            {
+                row.WorkDate.ToString("yyyy-MM-dd"),
+                row.OwnerId,
+                row.CategoryName,
+                row.SourceName ?? string.Empty,
+                row.TicketReference ?? string.Empty,
+                row.Description,
+                row.AfterHours ? "Yes" : "No",
+                row.DurationMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                string.Join("; ", row.Tags)
+            };
+            builder.AppendLine(string.Join(',', values.Select(Escape)));
+        }
+        return builder.ToString();
+    }
+
+    private static string Escape(string value)
+    {
+        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@')
+            value = "'" + value;
+        return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+    }
+}
