@@ -3,10 +3,12 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+    <EnableDefaultRazorGenerateItems>false</EnableDefaultRazorGenerateItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OtTime.Application\OtTime.Application.csproj" />
-    <ProjectReference Include="..\OtTime.Infrastructure\OtTime.Infrastructure.csproj" />
+    <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>
